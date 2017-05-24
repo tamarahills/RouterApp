@@ -19,20 +19,17 @@ import {
 import SettingsList from 'react-native-settings-list';
 import { NetworkInfo } from 'react-native-network-info';
 
-const onButtonPress = () => {
-};
-
-class MyDinnerList extends Component {
-  constructor(){
+class MyListView extends Component {
+  constructor() {
     super();
-    this.onValueChange = this.onValueChange.bind(this);
+    var ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
     this.state = {
-      switchValue: false,
+      dataSource: ds.cloneWithRows(['row 1', 'row 2']),
       loaded: false,
-      host: null,
-      devices: [],
-      localip: null,
-      ssid: null,
+      switchMap: new Map(),
+      taskCreated: false,
+      switchArray: {},
+      devices: {},
     };
   }
 
@@ -52,57 +49,84 @@ class MyDinnerList extends Component {
   }
 
   fetchData() {
-    fetch('http://127.0.0.1:8080/devices/', {
+    fetch('http://192.168.1.1:8080/devices/', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       }
     })
-      .then((response) => response.json())
-      .then((responseData) => {
+    .then((response) => response.json())
+    .then((responseData) => {
+        console.log(responseData.deviceList);
+        var ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2});
         this.setState({
+          dataSource: ds.cloneWithRows(responseData.deviceList),
           devices: responseData.deviceList,
           loaded: true,
         });
-      }) .done();
-    }
+        const tmp= {};
+      for(var i=0; i <responseData.deviceList.length; i++) {
+        tmp[responseData.deviceList[i].mac] = responseData.deviceList[i].enabled;
+      }
+        this.setState({
+          switchArray: tmp,
+        });
+    }) .done();
+  }
 
   render() {
-    if(!this.state.loaded) {
-      return (
-        <View style={{backgroundColor:'gray',flex:1}}>
-          <Text> Data not yet loaded </Text>
-        </View>
-      );
-    }
     return (
-      <View style={{backgroundColor:'gray',flex:1}}>
-      <View style={{flex:1, marginTop:50}}>
-        <SettingsList>
-          <SettingsList.Header headerText='Devices' headerStyle={{color:'white'}}/>
-          {
-            this.state.devices.map((y) => {
-              var canSwitch = true;
-              // Turn off the ability to turn off wifi for this user if
-              // they are the one running this app.
-              if(0 === y.IP.localeCompare(this.state.localip)) {
-                canSwitch = false;
-              }
-              return (<SettingsList.Item title={y.host + ':' + y.IP}
-                hasNavArrow={false}
-                hasSwitch={canSwitch}
-                switchState={this.state.switchValue}
-                switchOnValueChange={this.onValueChange}
-                disabled={false} />);
-            })
-          }
-        </SettingsList>
-      </View></View>
+      <ListView
+        dataSource={this.state.dataSource}
+        renderRow={this.renderRow.bind(this)}
+      />
     );
   }
-  onValueChange(value){
-    //this.setState({switchValue: value});
+
+  onChangeFunction(newState) {
+    const tmp = this.state.switchArray;
+    tmp[newState.name] = newState.value;
+
+    var data= {
+      mac: newState.name,
+      value: newState.value,
+    };
+
+    fetch('http://192.168.1.1:8080/pause/', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    })
+    .then(function(response) {
+      console.log(response);
+    })
+    .catch(function(response) {
+      Alert.alert('Error', 'Unable to toggle the internet for this device')
+      console.log(response);
+    }).done();
+
+    //TODO:  Try and move this inside of the .then clause.
+    this.setState({
+      switchArray: tmp,
+    });
+  }
+
+  //TODO:  need conditional rendering on the user's device.
+  renderRow(rowData) {
+    return(
+      <View style={{flexDirection: 'row', paddingTop: 20}}>
+        <Text>{rowData.host + ': ' + rowData.IP}</Text>
+        <Switch
+          style={{marginBottom: 10}}
+          onValueChange={(value) => this.onChangeFunction({value: value, name: rowData.mac})}
+          value={this.state.switchArray[rowData.mac]}
+        />
+      </View>
+    );
   }
 }
 
@@ -115,11 +139,51 @@ class MyVPNList extends Component {
         loaded: false,
         hostname: null,
         externalIP: null,
+        protectedByVPN: false,
+        enabled: false,
       };
     }
 
     componentDidMount() {
       this.getExternalNetworkInfo();
+      this.verifyVPNConnection();
+      this.getVPNStatusFromRouter();
+    }
+
+    verifyVPNConnection() {
+      fetch('https://www.privateinternetaccess.com/', {
+        method: 'GET'
+      })
+        .then((response) => response.text())
+        .then((responseData) => {
+          var found = responseData.indexOf('You are protected by PIA');
+          if (found != -1) {
+            this.setState({
+              protectedByVPN: true,
+            });
+          } else {
+            this.setState({
+              protectedByVPN: false,
+            });
+          }
+        }).done();
+    }
+
+    getVPNStatusFromRouter() {
+      fetch('http://192.168.1.1:8080/vpnStatus/', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        }
+      })
+        .then((response) => response.json())
+        .then((responseData) => {
+          this.setState({
+            enabled: (0 == responseData.vpnStatus.localeCompare('enabled'))? true: false,
+            loaded: true,
+          });
+        }) .done();
     }
 
     getExternalNetworkInfo() {
@@ -148,6 +212,16 @@ class MyVPNList extends Component {
           </View>
         );
       }
+      var statusString, colorString;
+      if(this.state.protectedByVPN) {
+        statusString = 'You are protected by PIA';
+        colorString = styles.green;
+      } else {
+        statusString = 'Your privacy is not protected';
+        colorString = styles.red;
+      }
+
+
       return (
         <View style={{backgroundColor:'gray',flex:1}}>
           <View style={{flex:1, marginTop:50}}>
@@ -155,7 +229,7 @@ class MyVPNList extends Component {
             	<SettingsList.Header headerText='VPN Status' headerStyle={{color:'white'}}/>
               <SettingsList.Item
                 hasNavArrow={false}
-                switchState={this.state.switchValue}
+                switchState={this.state.enabled}
                 switchOnValueChange={this.onValueChange}
                 hasSwitch={true}
                 title='VPN Status'/>
@@ -167,6 +241,11 @@ class MyVPNList extends Component {
                   hasNavArrow={false}
                   hasSwitch={false}
                   title={'Current External IP: ' +this.state.externalIP} />
+                <SettingsList.Item
+                  hasNavArrow={false}
+                  hasSwitch={false}
+                  titleStyle={colorString}
+                  title={statusString} />
             </SettingsList>
           </View>
         </View>
@@ -181,8 +260,10 @@ export default class RouterApp extends Component {
   render() {
     return (
       <View style={styles.container}>
-      <MyDinnerList />
-      <Button onPress={onButtonPress} title="Pause Internet" color="#FF0000" accessibilityLabel="Learn more about this purple button" />
+      <Text style={{
+        backgroundColor:'gray',
+        marginTop:20}}>Pause Internet for Devices:</Text>
+      <MyListView />
       <MyVPNList />
       </View>
     );
@@ -206,6 +287,12 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: 5,
   },
+  red: {
+    color: 'red',
+  },
+  green: {
+    color: 'green',
+  }
 });
 
 AppRegistry.registerComponent('RouterApp', () => RouterApp);
