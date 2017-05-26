@@ -66,9 +66,9 @@ class MyListView extends Component {
           loaded: true,
         });
         const tmp= {};
-      for(var i=0; i <responseData.deviceList.length; i++) {
-        tmp[responseData.deviceList[i].mac] = responseData.deviceList[i].enabled;
-      }
+        for(var i=0; i <responseData.deviceList.length; i++) {
+          tmp[responseData.deviceList[i].mac] = responseData.deviceList[i].enabled;
+        }
         this.setState({
           switchArray: tmp,
         });
@@ -77,10 +77,14 @@ class MyListView extends Component {
 
   render() {
     return (
+      <View style={{height:'auto'}}>
       <ListView
         dataSource={this.state.dataSource}
         renderRow={this.renderRow.bind(this)}
+        automaticallyAdjustContentInsets={false}
+        style={{backgroundColor: 'white'}}
       />
+      </View>
     );
   }
 
@@ -118,55 +122,32 @@ class MyListView extends Component {
   //TODO:  need conditional rendering on the user's device.
   renderRow(rowData) {
     return(
-      <View style={{flexDirection: 'row', paddingTop: 20}}>
-        <Text>{rowData.host + ': ' + rowData.IP}</Text>
+      <View style={{flexDirection: 'row', paddingTop: 1}}>
+      <View style={styles.messageBox}>
+        <Text style={styles.messageBoxBodyText}>{rowData.host + ': ' + rowData.IP}</Text>
         <Switch
-          style={{marginBottom: 10}}
           onValueChange={(value) => this.onChangeFunction({value: value, name: rowData.mac})}
           value={this.state.switchArray[rowData.mac]}
         />
+      </View>
       </View>
     );
   }
 }
 
-class MyVPNList extends Component {
+class MyVPNStatus extends Component {
     constructor(){
       super();
       this.onValueChange = this.onValueChange.bind(this);
       this.state = {
         switchValue: false,
         loaded: false,
-        hostname: null,
-        externalIP: null,
-        protectedByVPN: false,
         enabled: false,
       };
     }
 
     componentDidMount() {
-      this.getExternalNetworkInfo();
-      this.verifyVPNConnection();
       this.getVPNStatusFromRouter();
-    }
-
-    verifyVPNConnection() {
-      fetch('https://www.privateinternetaccess.com/', {
-        method: 'GET'
-      })
-        .then((response) => response.text())
-        .then((responseData) => {
-          var found = responseData.indexOf('You are protected by PIA');
-          if (found != -1) {
-            this.setState({
-              protectedByVPN: true,
-            });
-          } else {
-            this.setState({
-              protectedByVPN: false,
-            });
-          }
-        }).done();
     }
 
     getVPNStatusFromRouter() {
@@ -186,6 +167,37 @@ class MyVPNList extends Component {
         }) .done();
     }
 
+    render() {
+      if(!this.state.loaded) {
+        return (<Text> Data not yet loaded</Text>
+        );
+      }
+      return (
+        <View style={styles.vpnMessageBox} >
+        <Text style={styles.messageBoxBodyText}>VPN Status: </Text>
+        </View>
+      );
+    }
+  onValueChange(value){
+    this.setState({switchValue: value});
+  }
+}
+
+class MyVPNExternal extends Component {
+    constructor(){
+      super();
+      this.state = {
+        loaded: false,
+        hostname: 'foo',
+        externalIP: "bar",
+      };
+    }
+
+    componentDidMount() {
+      this.getExternalNetworkInfo();
+    }
+
+
     getExternalNetworkInfo() {
       fetch('https://ipinfo.io/json', {
         method: 'GET',
@@ -198,56 +210,86 @@ class MyVPNList extends Component {
         .then((responseData) => {
           this.setState({
             hostname: responseData.hostname,
-            loaded: true,
             externalIP: responseData.ip,
+            loaded:true,
           });
         }).done();
     }
 
     render() {
       if(!this.state.loaded) {
-        return (
-          <View style={{backgroundColor:'gray',flex:1}}>
-            <Text> Data not yet loaded </Text>
-          </View>
+        return (<Text> Data not yet loaded</Text>
         );
       }
-      var statusString, colorString;
-      if(this.state.protectedByVPN) {
-        statusString = 'You are protected by PIA';
-        colorString = styles.green;
-      } else {
-        statusString = 'Your privacy is not protected';
-        colorString = styles.red;
-      }
-
-
       return (
-        <View style={{backgroundColor:'gray',flex:1}}>
-          <View style={{flex:1, marginTop:50}}>
-            <SettingsList>
-            	<SettingsList.Header headerText='VPN Status' headerStyle={{color:'white'}}/>
-              <SettingsList.Item
-                hasNavArrow={false}
-                switchState={this.state.enabled}
-                switchOnValueChange={this.onValueChange}
-                hasSwitch={true}
-                title='VPN Status'/>
-                <SettingsList.Item
-                  hasNavArrow={false}
-                  hasSwitch={false}
-                  title={'Current External hostname: ' +this.state.hostname} />
-                <SettingsList.Item
-                  hasNavArrow={false}
-                  hasSwitch={false}
-                  title={'Current External IP: ' +this.state.externalIP} />
-                <SettingsList.Item
-                  hasNavArrow={false}
-                  hasSwitch={false}
-                  titleStyle={colorString}
-                  title={statusString} />
-            </SettingsList>
-          </View>
+        <View>
+        <View style={styles.vpnMessageBox} >
+        <Text style={styles.messageBoxBodyText}>
+          {'External Hostname: ' + this.state.hostname}</Text>
+        </View>
+        <View style={styles.vpnMessageBox} >
+        <Text style={styles.messageBoxBodyText}>
+          {'External IP: ' + this.state.externalIP}</Text>
+        </View>
+        </View>
+      );
+    }
+}
+
+class MyProviderStatus extends Component {
+    constructor(){
+      super();
+      this.state = {
+        loaded: false,
+        protectedByVPN: false,
+      };
+    }
+
+    componentDidMount() {
+      this.verifyVPNConnection();
+    }
+
+    verifyVPNConnection() {
+      fetch('https://www.privateinternetaccess.com/', {
+        method: 'GET'
+      })
+        .then((response) => response.text())
+        .then((responseData) => {
+          var found = responseData.indexOf('You are protected by PIA');
+          console.log('TAMARA: ' + found);
+          if (found != -1) {
+            this.setState({
+              protectedByVPN: true,
+              loaded: true,
+            });
+          } else {
+            this.setState({
+              protectedByVPN: false,
+              loaded: true,
+            });
+          }
+        }).done();
+    }
+
+    render() {
+      if(!this.state.loaded) {
+        return (<Text> Data not yet loaded</Text>
+        );
+      }
+      var protectedString, colorString;
+      if(this.state.protectedByVPN) {
+        protectedString = 'Your privacy is protected by Mozilla.';
+        colorString = styles.vpnMessageBoxGreen;
+      } else {
+        protectedString = 'You are not protected by VPN!';
+        colorString = styles.vpnMessageBoxRed;
+      }
+      return (
+        <View>
+        <View style={colorString} >
+        <Text style={styles.messageBoxBodyText}>
+          {protectedString} </Text>
+        </View>
         </View>
       );
     }
@@ -260,11 +302,16 @@ export default class RouterApp extends Component {
   render() {
     return (
       <View style={styles.container}>
-      <Text style={{
-        backgroundColor:'gray',
-        marginTop:20}}>Pause Internet for Devices:</Text>
+      <View style={{backgroundColor: 'gray'}} >
+      <Text style={styles.topMessageBoxTitleText}>Pause Internet for Devices</Text>
+      </View>
       <MyListView />
-      <MyVPNList />
+      <View style={{backgroundColor: 'gray'}} >
+      <Text style={styles.topMessageBoxTitleText}>VPN Status</Text>
+      </View>
+      <MyProviderStatus />
+      <MyVPNExternal />
+      <MyVPNStatus />
       </View>
     );
   }
@@ -273,26 +320,94 @@ export default class RouterApp extends Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'space-between',
+    /*justifyContent: 'space-between',*/
     backgroundColor: '#F5FCFF',
     flexDirection: 'column'
   },
-  welcome: {
-    fontSize: 20,
-    textAlign: 'center',
-    margin: 10,
-  },
-  instructions: {
-    textAlign: 'center',
-    color: '#333333',
-    marginBottom: 5,
-  },
-  red: {
-    color: 'red',
-  },
-  green: {
-    color: 'green',
-  }
+  messageBox:{
+        backgroundColor:'#E66000',
+        width:415,
+        paddingTop:18,
+        paddingBottom:20,
+        paddingLeft:20,
+        paddingRight:20,
+        borderRadius:10
+    },
+    topMessageBoxTitleText:{
+        fontWeight:'bold',
+        color:'#fff',
+        textAlign:'center',
+        fontSize:20,
+        marginTop:10,
+        marginBottom:10,
+        backgroundColor: 'gray'
+    },
+    messageBoxTitleText:{
+        paddingTop:15,
+        fontWeight:'bold',
+        color:'#fff',
+        textAlign:'left',
+        fontSize:20,
+        marginBottom:1,
+        backgroundColor: 'gray'
+    },
+    vpnMessageBox:{
+          backgroundColor:'#E66000',
+          width:415,
+          paddingTop:10,
+          paddingBottom:20,
+          paddingLeft:20,
+          paddingRight:20,
+          borderRadius:10,
+          marginBottom:1
+      },
+      vpnMessageBoxRed:{
+            backgroundColor:'#E66000',
+            width:415,
+            paddingTop:10,
+            paddingBottom:20,
+            paddingLeft:20,
+            paddingRight:20,
+            borderRadius:10,
+            marginBottom:1,
+            borderWidth: 5,
+            borderColor: 'red'
+        },
+        vpnMessageBoxGreen:{
+              backgroundColor:'#E66000',
+              width:415,
+              paddingTop:10,
+              paddingBottom:20,
+              paddingLeft:20,
+              paddingRight:20,
+              borderRadius:10,
+              marginBottom:1,
+              borderWidth: 5,
+              borderColor: 'green'
+          },
+    vpnMessageBoxTitleText:{
+        paddingTop:0,
+        fontWeight:'bold',
+        color:'#fff',
+        textAlign:'left',
+        fontSize:20,
+        marginTop: 0,
+        marginBottom:1,
+        backgroundColor: 'gray',
+        borderRadius: 10
+    },
+    messageBoxBodyText:{
+        color:'#fff',
+        fontSize:16,
+    },
+    messageBoxBodyTextRed:{
+        color:'red',
+        fontSize:16,
+    },
+    messageBoxBodyTextGreen:{
+        color:'green',
+        fontSize:16,
+    }
 });
 
 AppRegistry.registerComponent('RouterApp', () => RouterApp);
