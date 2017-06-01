@@ -11,6 +11,7 @@
     "react-native": "0.44.0",
     "react-native-network-info": "^2.1.0",
     "react-native-settings-list": "^1.4.0",
+    "react-native-simple-table": "0.0.2",
     "react-native-tableview-simple": "^0.16.5"
   },
   "devDependencies": {

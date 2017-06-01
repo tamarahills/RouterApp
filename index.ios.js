@@ -14,10 +14,30 @@ import {
   Switch,
   Alert,
   ListView,
+  WebView,
   View
 } from 'react-native';
 import SettingsList from 'react-native-settings-list';
 import { NetworkInfo } from 'react-native-network-info';
+import Table from 'react-native-simple-table';
+
+const columns = [
+  {
+    title: 'Source',
+    dataIndex: 'src',
+    width: 105
+  },
+  {
+    title: 'Destination',
+    dataIndex: 'dst',
+    width: 140
+  },
+  {
+    title: 'Bytes',
+    dataIndex: 'bytes',
+    width: 80
+  },
+];
 
 class MyListView extends Component {
   constructor() {
@@ -119,8 +139,13 @@ class MyListView extends Component {
     });
   }
 
-  //TODO:  need conditional rendering on the user's device.
   renderRow(rowData) {
+    //Disable the user's own IP so they can't shut themselves off.
+    var disabledVal = false;
+    if (this.state.localip == rowData.IP) {
+      disabledVal=true;
+    }
+
     return(
       <View style={{flexDirection: 'row', paddingTop: 1}}>
       <View style={styles.messageBox}>
@@ -128,58 +153,11 @@ class MyListView extends Component {
         <Switch
           onValueChange={(value) => this.onChangeFunction({value: value, name: rowData.mac})}
           value={this.state.switchArray[rowData.mac]}
+          disabled={disabledVal}
         />
       </View>
       </View>
     );
-  }
-}
-
-class MyVPNStatus extends Component {
-    constructor(){
-      super();
-      this.onValueChange = this.onValueChange.bind(this);
-      this.state = {
-        switchValue: false,
-        loaded: false,
-        enabled: false,
-      };
-    }
-
-    componentDidMount() {
-      this.getVPNStatusFromRouter();
-    }
-
-    getVPNStatusFromRouter() {
-      fetch('http://192.168.1.1:8080/vpnStatus/', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        }
-      })
-        .then((response) => response.json())
-        .then((responseData) => {
-          this.setState({
-            enabled: (0 == responseData.vpnStatus.localeCompare('enabled'))? true: false,
-            loaded: true,
-          });
-        }) .done();
-    }
-
-    render() {
-      if(!this.state.loaded) {
-        return (<Text> Data not yet loaded</Text>
-        );
-      }
-      return (
-        <View style={styles.vpnMessageBox} >
-        <Text style={styles.messageBoxBodyText}>VPN Status: </Text>
-        </View>
-      );
-    }
-  onValueChange(value){
-    this.setState({switchValue: value});
   }
 }
 
@@ -239,9 +217,11 @@ class MyVPNExternal extends Component {
 class MyProviderStatus extends Component {
     constructor(){
       super();
+      this.onChangeFunction = this.onChangeFunction.bind(this);
       this.state = {
         loaded: false,
         protectedByVPN: false,
+        switchValue: false,
       };
     }
 
@@ -260,11 +240,13 @@ class MyProviderStatus extends Component {
           if (found != -1) {
             this.setState({
               protectedByVPN: true,
+              switchValue: true,
               loaded: true,
             });
           } else {
             this.setState({
               protectedByVPN: false,
+              switchValue: true,
               loaded: true,
             });
           }
@@ -289,12 +271,87 @@ class MyProviderStatus extends Component {
         <View style={colorString} >
         <Text style={styles.messageBoxBodyText}>
           {protectedString} </Text>
+        <Switch
+          value={this.state.protectedByVPN}
+          onValueChange={(value) => this.onChangeFunction({value: value})}
+          disabled={false}
+        />
         </View>
         </View>
       );
     }
-  onValueChange(value){
-    this.setState({switchValue: value});
+  onChangeFunction(value){
+    this.setState({switchValue: value.value});
+    var data = { enabled : value.value, };
+    fetch('http://192.168.1.1:8080/toggleVpn/', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    })
+    .then(function(response) {
+      console.log(response);
+    })
+    .catch(function(response) {
+      Alert.alert('Error', 'Unable to toggle the internet for this device')
+      console.log(response);
+    }).done();
+  }
+}
+
+class MyWeb extends Component {
+  render() {
+    let custom = {'Cookie': "sysauth=71c51986bcbd9b81914eb8ad9391c12a;"};
+
+    return ( <WebView source={{uri: 'http://192.168.1.1/cgi-bin/luci/admin/status/realtime/connections',
+            headers: custom}}
+          style={{marginTop: 20}} />);
+  }
+}
+
+class ConnTable extends Component {
+  constructor(){
+    super();
+    this.state = {
+      loaded: false,
+    };
+  }
+
+  componentDidMount() {
+    setInterval(function() {
+      this.getExternalNetworkInfo();
+    }.bind(this), 5000);
+  }
+
+  getExternalNetworkInfo() {
+    fetch('http://192.168.1.1:8080/connections', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      }
+    })
+      .then((response) => response.json())
+      .then((responseData) => {
+        this.setState({
+          dataSource: responseData.connections,
+          loaded:true,
+        });
+      }).done();
+  }
+
+  render() {
+    if(!this.state.loaded) {
+      return (<View><Text> Loading data </Text></View>);
+    }
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Active Connections</Text>
+        <Table height={320} columnWidth={60} columns={columns} dataSource={this.state.dataSource} />
+      </View>
+    );
   }
 }
 
@@ -303,15 +360,19 @@ export default class RouterApp extends Component {
     return (
       <View style={styles.container}>
       <View style={{backgroundColor: 'gray'}} >
+      <MyWeb />
       <Text style={styles.topMessageBoxTitleText}>Pause Internet for Devices</Text>
       </View>
       <MyListView />
       <View style={{backgroundColor: 'gray'}} >
-      <Text style={styles.topMessageBoxTitleText}>VPN Status</Text>
+        <Text style={styles.topMessageBoxTitleText}>VPN Status</Text>
       </View>
       <MyProviderStatus />
       <MyVPNExternal />
-      <MyVPNStatus />
+      <View style={{backgroundColor: 'gray'}} >
+        <Text style={styles.topMessageBoxTitleText}>Active Connections</Text>
+      </View>
+      <ConnTable />
       </View>
     );
   }
