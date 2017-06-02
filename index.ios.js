@@ -15,7 +15,8 @@ import {
   Alert,
   ListView,
   WebView,
-  View
+  View,
+  TabBarIOS,
 } from 'react-native';
 import SettingsList from 'react-native-settings-list';
 import { NetworkInfo } from 'react-native-network-info';
@@ -322,7 +323,7 @@ class ConnTable extends Component {
   componentDidMount() {
     setInterval(function() {
       this.getExternalNetworkInfo();
-    }.bind(this), 5000);
+    }.bind(this), 8000);
   }
 
   getExternalNetworkInfo() {
@@ -347,33 +348,69 @@ class ConnTable extends Component {
       return (<View><Text> Loading data </Text></View>);
     }
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Active Connections</Text>
-        <Table height={320} columnWidth={60} columns={columns} dataSource={this.state.dataSource} />
+      <View>
+        <Table height={420} columnWidth={80} columns={columns} dataSource={this.state.dataSource} />
       </View>
     );
   }
 }
 
+class TabBar extends React.Component {
+   static title = '<TabBarIOS>';
+   static description = 'Tab-based navigation.';
+   static displayName = 'TabBar';
+   state = {
+     selectedTab: 'vpnTab',
+     notifCount: 0,
+     presses: 0,
+   };
+
+   render() {
+     return(
+       <TabBarIOS unselectedTintColor="gray" tintColor="blue">
+       <TabBarIOS.Item
+        title="VPN"
+        selected={this.state.selectedTab === 'vpnTab'}
+        onPress={() => {
+          this.setState({ selectedTab: 'vpnTab', }); }}>
+          {
+            <View style={styles.container}>
+            <View style={{backgroundColor: 'gray'}} >
+            <MyWeb />
+            <Text style={styles.topMessageBoxTitleText}>Pause Internet for Devices</Text>
+            </View>
+            <MyListView />
+            <View style={{backgroundColor: 'gray'}} >
+              <Text style={styles.topMessageBoxTitleText}>VPN Status</Text>
+            </View>
+            <MyProviderStatus />
+            <MyVPNExternal />
+            </View>
+          }
+        </TabBarIOS.Item>
+        <TabBarIOS.Item
+         title="Connections"
+         selected={this.state.selectedTab === 'connTab'}
+         onPress={() => {
+           this.setState({ selectedTab: 'connTab', }); }}>
+           {
+             <View>
+             <View style={{backgroundColor: 'gray'}} >
+               <Text style={styles.topMessageBoxTitleText}>Active Connections</Text>
+             </View>
+             <ConnTable />
+             </View>
+           }
+         </TabBarIOS.Item>
+        </TabBarIOS>
+     );
+   }
+ };
+
 export default class RouterApp extends Component {
   render() {
     return (
-      <View style={styles.container}>
-      <View style={{backgroundColor: 'gray'}} >
-      <MyWeb />
-      <Text style={styles.topMessageBoxTitleText}>Pause Internet for Devices</Text>
-      </View>
-      <MyListView />
-      <View style={{backgroundColor: 'gray'}} >
-        <Text style={styles.topMessageBoxTitleText}>VPN Status</Text>
-      </View>
-      <MyProviderStatus />
-      <MyVPNExternal />
-      <View style={{backgroundColor: 'gray'}} >
-        <Text style={styles.topMessageBoxTitleText}>Active Connections</Text>
-      </View>
-      <ConnTable />
-      </View>
+      <TabBar/>
     );
   }
 }
@@ -386,7 +423,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column'
   },
   messageBox:{
-        backgroundColor:'#E66000',
+        backgroundColor:'#7386a3',
         width:415,
         paddingTop:18,
         paddingBottom:20,
@@ -413,7 +450,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'gray'
     },
     vpnMessageBox:{
-          backgroundColor:'#E66000',
+          backgroundColor:'#7386a3',
           width:415,
           paddingTop:10,
           paddingBottom:20,
@@ -423,7 +460,7 @@ const styles = StyleSheet.create({
           marginBottom:1
       },
       vpnMessageBoxRed:{
-            backgroundColor:'#E66000',
+            backgroundColor:'#7386a3',
             width:415,
             paddingTop:10,
             paddingBottom:20,
@@ -435,7 +472,7 @@ const styles = StyleSheet.create({
             borderColor: 'red'
         },
         vpnMessageBoxGreen:{
-              backgroundColor:'#E66000',
+              backgroundColor:'#7386a3',
               width:415,
               paddingTop:10,
               paddingBottom:20,
